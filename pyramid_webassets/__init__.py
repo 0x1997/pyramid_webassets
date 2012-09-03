@@ -1,6 +1,5 @@
 from pyramid.path           import AssetResolver
 from pyramid.settings       import asbool
-from pyramid.threadlocal    import get_current_request
 from zope.interface         import Interface
 from webassets              import Bundle
 from webassets.env          import Environment
@@ -9,10 +8,6 @@ from webassets.exceptions   import BundleError
 
 
 class PyramidResolver(Resolver):
-    def glob_staticfiles(self, item):
-        #TODO: figure out globbing
-        pass
-
     def search_for_source(self, item):
         try:
             item = AssetResolver(None).resolve(item).abspath()
@@ -22,27 +17,6 @@ class PyramidResolver(Resolver):
             return super(PyramidResolver, self).search_for_source(item)
 
         return item
-
-    def resolve_source_to_url(self, filepath, item):
-        request = get_current_request()
-        url = request.static_url(filepath)
-
-        return url
-
-    def resolve_output_to_url(self, item):
-        try:
-            request = get_current_request()
-
-            url = request.static_url(self.search_for_source(item))
-
-            return url
-        except ValueError as e:
-            if ':' in item:
-                e.message += '(%s)' % item
-
-            raise BundleError(e)
-
-        return self.resolve_source_to_url(None, item)
 
 class Environment(Environment):
     resolver_class = PyramidResolver
@@ -88,6 +62,8 @@ def get_webassets_env_from_settings(settings, prefix='webassets'):
     asset_dir = kwargs.pop('base_dir')
     asset_url = kwargs.pop('base_url')
 
+    load_path = [x.strip() for x in kwargs.pop('load_path').splitlines()] if 'load_path' in kwargs else None
+
     if 'debug' in kwargs:
         dbg = kwargs['debug'].lower()
 
@@ -114,6 +90,10 @@ def get_webassets_env_from_settings(settings, prefix='webassets'):
             kwargs['manifest'] = asbool(kwargs['manifest'])
 
     assets_env = Environment(asset_dir, asset_url, **kwargs)
+
+    if load_path:
+        for path in load_path:
+            assets_env.append_path(path)
 
     return assets_env
 
